@@ -5,11 +5,17 @@ export async function sendEmail({
   subject,
   html,
   text,
+  attachments,
 }: {
   to: string;
   subject: string;
   html: string;
   text?: string;
+  attachments?: {
+    filename: string;
+    content: any;
+    contentType?: string;
+  }[];
 }) {
   const smtpHost = process.env.SMTP_HOST;
   const smtpPort = process.env.SMTP_PORT;
@@ -21,7 +27,7 @@ export async function sendEmail({
     const transporter = nodemailer.createTransport({
       host: smtpHost,
       port: parseInt(smtpPort),
-      secure: smtpPort === "465", // true for 465, false for other ports
+      secure: smtpPort === "465",
       auth: {
         user: smtpUser,
         pass: smtpPass,
@@ -33,7 +39,8 @@ export async function sendEmail({
       to,
       subject,
       html,
-      text: text || "Your OTP Code from Pink Dessert Catering",
+      text: text || "Your order details from Pink Dessert Catering",
+      attachments,
     });
   } else {
     // FALLBACK SIMULATION: Log to terminal so CENG 382 students can easily copy it
@@ -42,6 +49,9 @@ export async function sendEmail({
     console.log(`To: ${to}`);
     console.log(`Subject: ${subject}`);
     console.log(`Content:\n${text || html}`);
+    if (attachments && attachments.length > 0) {
+      console.log(`Attachments: ${attachments.map(a => a.filename).join(", ")}`);
+    }
     console.log("==========================================\n");
     return { messageId: "simulated-id" };
   }
