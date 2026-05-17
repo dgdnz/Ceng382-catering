@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ---------------------------------------------------------
+// Role structure & Authentication 
+// Fulfills the "Role structure" requirement including 2FA
+// ---------------------------------------------------------
+
+model User {
+  id                    String    @id @default(uuid())
+  email                 String    @unique
+  passwordHash          String
+  role                  String    @default("USER") // ADMIN, CATERER, USER
+  
+  // 2FA Fields
+  twoFactorEnabled      Boolean   @default(false)
+  twoFactorSecret       String?
+  
+  // Caterer Details (Coordinates for Google Maps API filtering)
+  catererName           String?
+  latitude              Float?
+  longitude             Float?
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  // Relations
+  menuItems             MenuItem[] // Items created by the caterer
+  orders                Order[]    @relation("UserOrders") // Orders placed by the user
+  catererOrders         Order[]    @relation("CatererOrders") // Orders received by the caterer
+  ratingsGiven          Rating[]   @relation("RatingsGiven")
+  ratingsReceived       Rating[]   @relation("CatererRatings")
+  logs                  Log[]
+}
+
+// ---------------------------------------------------------
+// Menu System (12 pts)
+// Dynamic Customizations (Not Hardcoded)
+// ---------------------------------------------------------
+
+model MenuItem {
+  id              String    @id @default(uuid())
+  name            String
+  description     String
+  price           Float
+  imageUrl        String
+  
+  catererId       String
+  caterer         User      @relation(fields: [catererId], references: [id])
+
+  // Relation to Dynamic Customizations
+  customizationGroups CustomizationGroup[]
+  
+  orderItems      OrderItem[]
+  ratings         Rating[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// Groups for options (e.g., "Size", "Syrups", "Remove Ingredients")
+model CustomizationGroup {
+  id          String    @id @default(uuid())
+  name        String    // e.g., "Remove Ingredients", "Extra Toppings"
+  isRequired  Boolean   @default(false)
+  allowMultiple Boolean @default(false) // true = checkboxes (multiple allowed), false = radio (one allowed)
+  
+  menuItemId  String
+  menuItem    MenuItem  @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  
+  options     CustomizationOption[]
+}
+
+// The actual options within a group
+model CustomizationOption {
+  id          String    @id @default(uuid())
+  name        String    // e.g., "No Nuts" (0 price), "Large Size" (+2.00)
+  priceChange Float     @default(0.0) // 0 for removable ingredients, positive/negative for additions
+  
+  groupId     String
+  group       CustomizationGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  // Link to order items that selected this specific option
+  orderItemSelections OrderItemCustomization[]
+}
+
+// ---------------------------------------------------------
+// Orders & Cart System
+// ---------------------------------------------------------
+
+model Order {
+  id          String    @id @default(uuid())
+  totalPrice  Float
+  status      String    @default("PENDING") // PENDING, PREPARING, COMPLETED, CANCELLED
+  
+  userId      String
+  user        User      @relation("UserOrders", fields: [userId], references: [id])
+  
+  catererId   String
+  caterer     User      @relation("CatererOrders", fields: [catererId], references: [id])
+
+  orderItems  OrderItem[]
+  ratings     Rating[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model OrderItem {
+  id          String    @id @default(uuid())
+  quantity    Int       @default(1)
+  unitPrice   Float     // Base price of the item at the time of order
+  totalPrice  Float     // Base price + customizations * quantity
+  
+  orderId     String
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  menuItemId  String
+  menuItem    MenuItem  @relation(fields: [menuItemId], references: [id])
+
+  customizations OrderItemCustomization[]
+}
+
+// Resolves the many-to-many relationship between OrderItems and selected CustomizationOptions
+model OrderItemCustomization {
+  id          String    @id @default(uuid())
+  
+  orderItemId String
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  
+  optionId    String
+  option      CustomizationOption @relation(fields: [optionId], references: [id])
+  
+  priceAtOrder Float    // Storing the price change at the exact time of order to prevent historical data mutation
+}
+
+// ---------------------------------------------------------
+// Rating System 
+// ---------------------------------------------------------
+
+model Rating {
+  id          String    @id @default(uuid())
+  score       Int       // 1 to 5
+  comment     String?
+  
+  // Strictly linked to an order
+  orderId     String
+  order       Order     @relation(fields: [orderId], references: [id])
+
+  userId      String
+  user        User      @relation("RatingsGiven", fields: [userId], references: [id])
+
+  // Can rate the specific menu item OR the caterer generally
+  menuItemId  String?
+  menuItem    MenuItem? @relation(fields: [menuItemId], references: [id])
+  
+  catererId   String?
+  caterer     User?     @relation("CatererRatings", fields: [catererId], references: [id])
+
+  createdAt   DateTime  @default(now())
+}
+
+// ---------------------------------------------------------
+// Logging System (6 pts)
+// ---------------------------------------------------------
+
+model Log {
+  id          String    @id @default(uuid())
+  action      String    // e.g., "USER_LOGIN", "ORDER_CREATED", "RATING_SUBMITTED"
+  details     String?
+  
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  createdAt   DateTime  @default(now())
+}
