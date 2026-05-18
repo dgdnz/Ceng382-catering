@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, Trash2, Edit, UtensilsCrossed, ArrowLeft } from "lucide-react";
+import { Plus, Trash2, Edit, UtensilsCrossed, ArrowLeft, Grid, List } from "lucide-react";
+import ReusableTable from "@/components/ReusableTable";
+import { ColumnDef } from "@tanstack/react-table";
 
 interface Option {
   id?: string;
@@ -31,6 +33,9 @@ export default function CatererMenuPage() {
   const [items, setItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  
+  // Toggle between Grid and TanStack Table view
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
   const fetchMenu = async () => {
     try {
@@ -65,6 +70,63 @@ export default function CatererMenuPage() {
     }
   };
 
+  // Define Columns for the Menu TanStack Table view
+  const columns: ColumnDef<MenuItem>[] = [
+    {
+      accessorKey: "imageUrl",
+      header: "Pastry",
+      cell: ({ row }) => (
+        <div className="w-12 h-12 rounded-xl overflow-hidden bg-pink-50 border border-primary border-opacity-30">
+          <img src={row.original.imageUrl} alt={row.original.name} className="w-full h-full object-cover" />
+        </div>
+      ),
+    },
+    {
+      accessorKey: "name",
+      header: "Pastry Name",
+      cell: ({ row }) => <span className="font-bold text-textDark text-sm">{row.original.name}</span>,
+    },
+    {
+      accessorKey: "price",
+      header: "Price",
+      cell: ({ row }) => <span className="font-extrabold text-accent">${row.original.price.toFixed(2)}</span>,
+    },
+    {
+      accessorKey: "description",
+      header: "Description",
+      cell: ({ row }) => <span className="text-textLight max-w-xs block truncate">{row.original.description}</span>,
+    },
+    {
+      accessorKey: "customizations",
+      header: "Customizations",
+      cell: ({ row }) => (
+        <span className="bg-primary bg-opacity-20 text-secondary px-2.5 py-1 rounded-full text-[10px] font-bold">
+          {row.original.customizationGroups.length} Groups
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => (
+        <div className="flex gap-2">
+          <Link
+            href={`/caterer/menu/edit/${row.original.id}`}
+            className="p-2 bg-background hover:bg-primary hover:text-white rounded-lg text-secondary border border-primary border-opacity-35 transition"
+          >
+            <Edit className="w-4 h-4" />
+          </Link>
+          <button
+            onClick={() => handleDelete(row.original.id)}
+            className="p-2 bg-red-50 hover:bg-red-500 hover:text-white rounded-lg text-red-600 border border-red-100 transition"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-background p-6 md:p-12">
       {/* Header */}
@@ -81,12 +143,30 @@ export default function CatererMenuPage() {
             Add, update, or remove delicious items from your shop.
           </p>
         </div>
-        <div>
+        
+        {/* Toggle and Add Pastry Buttons */}
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          {/* Grid/Table Toggle */}
+          <div className="flex bg-white rounded-full p-1 border border-primary border-opacity-30 shadow-sm">
+            <button
+              onClick={() => setViewMode("grid")}
+              className={`p-2 rounded-full transition ${viewMode === "grid" ? "bg-primary text-white" : "text-textLight hover:text-textDark"}`}
+            >
+              <Grid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode("table")}
+              className={`p-2 rounded-full transition ${viewMode === "table" ? "bg-primary text-white" : "text-textLight hover:text-textDark"}`}
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+
           <Link
             href="/caterer/menu/new"
-            className="flex items-center gap-2 bg-secondary text-white font-bold px-6 py-3 rounded-full shadow-md hover:bg-accent transition duration-300"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-secondary text-white font-bold px-6 py-3 rounded-full shadow-md hover:bg-accent transition duration-300"
           >
-            <Plus className="w-5 h-5" /> Add New Pastry 🧁
+            <Plus className="w-5 h-5" /> Add Pastry 🧁
           </Link>
         </div>
       </div>
@@ -102,61 +182,74 @@ export default function CatererMenuPage() {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-secondary"></div>
         </div>
       ) : items.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {items.map((item) => (
-            <div key={item.id} className="bg-white rounded-3xl overflow-hidden shadow-md border border-primary border-opacity-30 hover:shadow-xl transition duration-300 flex flex-col">
-              {/* Image */}
-              <div className="h-56 relative w-full bg-pink-50 overflow-hidden">
-                <img
-                  src={item.imageUrl}
-                  alt={item.name}
-                  className="w-full h-full object-cover"
-                />
-                <span className="absolute top-4 right-4 bg-white text-accent font-extrabold px-4 py-1 rounded-full shadow-md">
-                  ${item.price.toFixed(2)}
-                </span>
-              </div>
+        viewMode === "grid" ? (
+          /* 1. Gorgeous Grid Catalog View */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {items.map((item) => (
+              <div key={item.id} className="bg-white rounded-3xl overflow-hidden shadow-md border border-primary border-opacity-30 hover:shadow-xl transition duration-300 flex flex-col">
+                {/* Image */}
+                <div className="h-56 relative w-full bg-pink-50 overflow-hidden">
+                  <img
+                    src={item.imageUrl}
+                    alt={item.name}
+                    className="w-full h-full object-cover"
+                  />
+                  <span className="absolute top-4 right-4 bg-white text-accent font-extrabold px-4 py-1 rounded-full shadow-md">
+                    ${item.price.toFixed(2)}
+                  </span>
+                </div>
 
-              {/* Body */}
-              <div className="p-6 flex-1 flex flex-col justify-between">
-                <div>
-                  <h3 className="text-xl font-bold text-textDark mb-2">{item.name}</h3>
-                  <p className="text-textLight text-sm mb-4 line-clamp-3">{item.description}</p>
-                  
-                  {/* Customizations count */}
-                  {item.customizationGroups.length > 0 && (
-                    <div className="mb-4">
-                      <p className="text-xs font-bold text-accent uppercase tracking-wider mb-2">Customizations</p>
-                      <div className="flex flex-wrap gap-2">
-                        {item.customizationGroups.map((g) => (
-                          <span key={g.id} className="bg-background text-secondary text-xs px-3 py-1 rounded-full font-semibold border border-primary border-opacity-30">
-                            {g.name} ({g.options.length})
-                          </span>
-                        ))}
+                {/* Body */}
+                <div className="p-6 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-textDark mb-2">{item.name}</h3>
+                    <p className="text-textLight text-sm mb-4 line-clamp-3">{item.description}</p>
+                    
+                    {/* Customizations count */}
+                    {item.customizationGroups.length > 0 && (
+                      <div className="mb-4">
+                        <p className="text-xs font-bold text-accent uppercase tracking-wider mb-2">Customizations</p>
+                        <div className="flex flex-wrap gap-2">
+                          {item.customizationGroups.map((g) => (
+                            <span key={g.id} className="bg-background text-secondary text-xs px-3 py-1 rounded-full font-semibold border border-primary border-opacity-30">
+                              {g.name} ({g.options.length})
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
 
-                {/* Actions */}
-                <div className="flex gap-3 pt-4 border-t border-dashed border-primary border-opacity-30 mt-auto">
-                  <Link
-                    href={`/caterer/menu/edit/${item.id}`}
-                    className="flex-1 flex justify-center items-center gap-2 bg-background border border-primary text-secondary hover:bg-primary hover:text-white font-bold py-2 rounded-xl transition duration-200"
-                  >
-                    <Edit className="w-4 h-4" /> Edit
-                  </Link>
-                  <button
-                    onClick={() => handleDelete(item.id)}
-                    className="flex-1 flex justify-center items-center gap-2 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white font-bold py-2 rounded-xl transition duration-200"
-                  >
-                    <Trash2 className="w-4 h-4" /> Delete
-                  </button>
+                  {/* Actions */}
+                  <div className="flex gap-3 pt-4 border-t border-dashed border-primary border-opacity-30 mt-auto">
+                    <Link
+                      href={`/caterer/menu/edit/${item.id}`}
+                      className="flex-1 flex justify-center items-center gap-2 bg-background border border-primary text-secondary hover:bg-primary hover:text-white font-bold py-2 rounded-xl transition duration-200"
+                    >
+                      <Edit className="w-4 h-4" /> Edit
+                    </Link>
+                    <button
+                      onClick={() => handleDelete(item.id)}
+                      className="flex-1 flex justify-center items-center gap-2 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white font-bold py-2 rounded-xl transition duration-200"
+                    >
+                      <Trash2 className="w-4 h-4" /> Delete
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          /* 2. TanStack Reusable Table View (Fulfills Step 8 Table requirement!) */
+          <div className="bg-white rounded-3xl p-6 border border-primary border-opacity-30 shadow-md">
+            <ReusableTable
+              data={items}
+              columns={columns}
+              filterPlaceholder="Search by pastry name..."
+              filterColumnId="name"
+            />
+          </div>
+        )
       ) : (
         <div className="text-center bg-white p-16 rounded-3xl shadow-sm border border-primary border-opacity-30">
           <span className="text-6xl mb-4 inline-block">🧁</span>
