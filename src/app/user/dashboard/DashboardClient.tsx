@@ -3,8 +3,14 @@
 import React, { useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
-import { User as UserIcon, ShoppingBag, CreditCard, Clock, Star, MessageSquare, X } from "lucide-react";
+import { User as UserIcon, ShoppingBag, CreditCard, Clock, Star, MessageSquare, X, Phone } from "lucide-react";
 import ReusableTable from "@/components/ReusableTable";
+import dynamicImport from "next/dynamic";
+
+// Dynamically import LiveCall with SSR disabled to prevent PeerJS window ReferenceError!
+const LiveCall = dynamicImport(() => import("@/components/LiveCall"), {
+  ssr: false,
+});
 
 interface OrderItem {
   id: string;
@@ -35,8 +41,11 @@ export default function DashboardClient({
   totalPurchases: number;
   totalSpent: number;
 }) {
-  // Rating modal states
+  // Modal states
   const [ratingOrder, setRatingOrder] = useState<OrderRow | null>(null);
+  const [activeCallOrder, setActiveCallOrder] = useState<OrderRow | null>(null);
+
+  // Rating values
   const [score, setScore] = useState(5);
   const [comment, setComment] = useState("");
   const [ratingError, setRatingError] = useState("");
@@ -74,7 +83,6 @@ export default function DashboardClient({
       if (!response.ok) throw new Error(data.error || "Failed to submit rating.");
 
       setRatingSuccess(data.message);
-      // Wait 1.5s and reload page to reflect new ratings
       setTimeout(() => {
         window.location.reload();
       }, 1500);
@@ -85,7 +93,7 @@ export default function DashboardClient({
     }
   };
 
-  // Define Columns for TanStack Orders Table (Fulfills Step 8 orders table requirement!)
+  // Define Columns for TanStack Orders Table
   const columns: ColumnDef<OrderRow>[] = [
     {
       accessorKey: "catererName",
@@ -143,6 +151,23 @@ export default function DashboardClient({
           {row.original.status}
         </span>
       ),
+    },
+    {
+      id: "liveCallAction",
+      header: "Support Line",
+      cell: ({ row }) => {
+        if (row.original.status !== "CANCELLED") {
+          return (
+            <button
+              onClick={() => setActiveCallOrder(row.original)}
+              className="flex items-center gap-1 bg-secondary hover:bg-accent text-white font-extrabold text-[10px] px-3.5 py-1.5 rounded-full shadow-sm transition"
+            >
+              <Phone className="w-3.5 h-3.5" /> Call Baker
+            </button>
+          );
+        }
+        return <span className="text-[10px] text-textLight italic">Cancelled</span>;
+      },
     },
     {
       id: "ratingAction",
@@ -232,7 +257,7 @@ export default function DashboardClient({
 
       </div>
 
-      {/* RATING SUBMISSION POPUP MODAL (Part 1 requirement) */}
+      {/* RATING SUBMISSION POPUP MODAL */}
       {ratingOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 border border-primary border-opacity-30 shadow-2xl space-y-6 animate-zoom-in">
@@ -316,6 +341,35 @@ export default function DashboardClient({
               </button>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* WEBRTC LIVE VIDEO CALL MODAL DRAWER FOR USER */}
+      {activeCallOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-65 z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 border border-primary border-opacity-30 shadow-2xl relative">
+            <button
+              onClick={() => setActiveCallOrder(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-background text-textLight hover:text-textDark transition"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            
+            <div className="mb-4">
+              <span className="text-[10px] uppercase font-extrabold text-accent tracking-widest">
+                Active Order P2P Connection
+              </span>
+              <h3 className="text-lg font-bold text-textDark mt-0.5">
+                Calling Baker: {activeCallOrder.catererName}
+              </h3>
+            </div>
+
+            <LiveCall
+              orderId={activeCallOrder.id}
+              callerRole="USER"
+              partnerName={activeCallOrder.catererName}
+            />
           </div>
         </div>
       )}
